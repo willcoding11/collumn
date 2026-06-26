@@ -144,6 +144,7 @@
   #grid-table td:hover { filter: brightness(1.25); }
   #grid-table td.no-lines { border: none; }
   #grid-table td.with-lines { border: 1px solid #333; }
+  #grid-table td.selected { outline: 2px solid #58a6ff; outline-offset: -2px; z-index: 1; }
   #grid-table th.with-lines { border: 1px solid #0f3460; }
   #grid-table th.no-lines { border: none; }
 
@@ -336,8 +337,31 @@ let state = {
   ],
 };
 
-let activeCell = null; // { row, col }
+let activeCell = null; // { r, c } — the cell the popup is anchored to
 let selectedColor = null;
+
+// Multi-select state
+let selection = new Set(); // keys like "r,c"
+let lastSingle = null;     // { r, c } — anchor for shift-range
+
+function selKey(r, c) { return `${r},${c}`; }
+function selParsed(key) { const [r,c] = key.split(',').map(Number); return {r,c}; }
+
+function setSelected(r, c, on) {
+  const k = selKey(r, c);
+  if (on) selection.add(k); else selection.delete(k);
+  const td = document.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+  if (td) td.classList.toggle('selected', on);
+}
+
+function clearSelection() {
+  selection.forEach(k => {
+    const {r, c} = selParsed(k);
+    const td = document.querySelector(`td[data-row="${r}"][data-col="${c}"]`);
+    if (td) td.classList.remove('selected');
+  });
+  selection.clear();
+}
 
 function initCells(rows, cols, oldCells, oldBase) {
   const cells = [];
@@ -364,6 +388,8 @@ function initColNames(cols, oldNames) {
 }
 
 function buildGrid() {
+  selection.clear();
+  lastSingle = null;
   const table = document.getElementById('grid-table');
   table.innerHTML = '';
 
@@ -428,7 +454,29 @@ function buildGrid() {
 
       td.addEventListener('click', e => {
         e.stopPropagation();
-        openPopup(r, c, td);
+        if (e.ctrlKey || e.metaKey) {
+          // Toggle this cell in/out of selection
+          const on = !selection.has(selKey(r, c));
+          setSelected(r, c, on);
+          if (on) lastSingle = { r, c };
+          closePopup();
+        } else if (e.shiftKey && lastSingle) {
+          // Range select from lastSingle to this cell
+          clearSelection();
+          const r0 = Math.min(lastSingle.r, r), r1 = Math.max(lastSingle.r, r);
+          const c0 = Math.min(lastSingle.c, c), c1 = Math.max(lastSingle.c, c);
+          for (let rr = r0; rr <= r1; rr++)
+            for (let cc = c0; cc <= c1; cc++)
+              setSelected(rr, cc, true);
+          // Open popup for the range
+          openPopup(r, c, td);
+        } else {
+          // Plain click: clear selection and open popup
+          clearSelection();
+          lastSingle = { r, c };
+          setSelected(r, c, true);
+          openPopup(r, c, td);
+        }
       });
 
       tr.appendChild(td);
@@ -500,7 +548,9 @@ function openPopup(r, c, td) {
   selectedColor = cell.color;
   customColorInput.value = cell.color || '#ffffff';
   popupTextInput.value = cell.text || '';
-  document.getElementById('popup-title').textContent = `Row ${r+1}, ${state.colNames[c]}`;
+  const count = selection.size;
+  document.getElementById('popup-title').textContent =
+    count > 1 ? `${count} cells selected` : `Row ${r+1}, ${state.colNames[c]}`;
   buildSwatches();
 
   const rect = td.getBoundingClientRect();
@@ -528,33 +578,38 @@ customColorInput.addEventListener('input', e => {
 });
 
 document.getElementById('popup-apply-btn').addEventListener('click', () => {
-  if (!activeCell) return;
-  const { r, c } = activeCell;
-  state.cells[r][c].color = selectedColor;
-  state.cells[r][c].text = popupTextInput.value;
-  // Also update base
-  state.baseCells[r][c].color = selectedColor;
-  state.baseCells[r][c].text = popupTextInput.value;
-  updateCellDisplay(r, c);
+  const targets = selection.size > 0 ? [...selection].map(selParsed) : (activeCell ? [activeCell] : []);
+  targets.forEach(({ r, c }) => {
+    state.cells[r][c].color = selectedColor;
+    state.cells[r][c].text = popupTextInput.value;
+    state.baseCells[r][c].color = selectedColor;
+    state.baseCells[r][c].text = popupTextInput.value;
+    updateCellDisplay(r, c);
+  });
   if (state.diffuseLevel > 0) applyDiffuse();
   closePopup();
 });
 
 document.getElementById('popup-clear-btn').addEventListener('click', () => {
-  if (!activeCell) return;
-  const { r, c } = activeCell;
-  state.cells[r][c].color = null;
-  state.cells[r][c].text = '';
-  state.baseCells[r][c].color = null;
-  state.baseCells[r][c].text = '';
-  updateCellDisplay(r, c);
+  const targets = selection.size > 0 ? [...selection].map(selParsed) : (activeCell ? [activeCell] : []);
+  targets.forEach(({ r, c }) => {
+    state.cells[r][c].color = null;
+    state.cells[r][c].text = '';
+    state.baseCells[r][c].color = null;
+    state.baseCells[r][c].text = '';
+    updateCellDisplay(r, c);
+  });
   if (state.diffuseLevel > 0) applyDiffuse();
   closePopup();
 });
 
 document.addEventListener('click', e => {
-  if (!popup.classList.contains('visible')) return;
-  if (!popup.contains(e.target) && !e.target.closest('td')) closePopup();
+  if (popup.classList.contains('visible')) {
+    if (!popup.contains(e.target) && !e.target.closest('td')) closePopup();
+  } else if (!e.target.closest('td') && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    clearSelection();
+    lastSingle = null;
+  }
 });
 
 // Diffuse
