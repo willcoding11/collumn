@@ -526,6 +526,7 @@ function buildSwatches() {
       selectedColor = color;
       customColorInput.value = color;
       buildSwatches();
+      applyToTargets(selectedColor, popupTextInput.value); // auto-apply on click
     });
     swatchesEl.appendChild(s);
   });
@@ -542,6 +543,7 @@ function buildSwatches() {
       selectedColor = color;
       customColorInput.value = color;
       buildSwatches();
+      applyToTargets(selectedColor, popupTextInput.value); // auto-apply on click
     });
     swatchesEl.appendChild(s);
   });
@@ -577,34 +579,35 @@ function closePopup() {
   activeCell = null;
 }
 
-customColorInput.addEventListener('input', e => {
-  selectedColor = e.target.value;
-  buildSwatches();
-});
+function popupTargets() {
+  return selection.size > 0 ? [...selection].map(selParsed) : (activeCell ? [activeCell] : []);
+}
 
-document.getElementById('popup-apply-btn').addEventListener('click', () => {
-  const targets = selection.size > 0 ? [...selection].map(selParsed) : (activeCell ? [activeCell] : []);
-  targets.forEach(({ r, c }) => {
-    state.cells[r][c].color = selectedColor;
-    state.cells[r][c].text = popupTextInput.value;
-    state.baseCells[r][c].color = selectedColor;
-    state.baseCells[r][c].text = popupTextInput.value;
+// Apply a color (and text) to all current target cells. color === null clears.
+function applyToTargets(color, text) {
+  popupTargets().forEach(({ r, c }) => {
+    state.cells[r][c].color = color;
+    state.cells[r][c].text = text;
+    state.baseCells[r][c].color = color;
+    state.baseCells[r][c].text = text;
     updateCellDisplay(r, c);
   });
   if (state.diffuseLevel > 0) applyDiffuse();
+}
+
+customColorInput.addEventListener('input', e => {
+  selectedColor = e.target.value;
+  buildSwatches();
+  applyToTargets(selectedColor, popupTextInput.value); // live apply
+});
+
+document.getElementById('popup-apply-btn').addEventListener('click', () => {
+  applyToTargets(selectedColor, popupTextInput.value);
   closePopup();
 });
 
 document.getElementById('popup-clear-btn').addEventListener('click', () => {
-  const targets = selection.size > 0 ? [...selection].map(selParsed) : (activeCell ? [activeCell] : []);
-  targets.forEach(({ r, c }) => {
-    state.cells[r][c].color = null;
-    state.cells[r][c].text = '';
-    state.baseCells[r][c].color = null;
-    state.baseCells[r][c].text = '';
-    updateCellDisplay(r, c);
-  });
-  if (state.diffuseLevel > 0) applyDiffuse();
+  applyToTargets(null, '');
   closePopup();
 });
 
