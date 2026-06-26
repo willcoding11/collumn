@@ -454,24 +454,27 @@ function buildGrid() {
 
       td.addEventListener('click', e => {
         e.stopPropagation();
-        if (e.ctrlKey || e.metaKey) {
-          // Toggle this cell in/out of selection
-          const on = !selection.has(selKey(r, c));
-          setSelected(r, c, on);
-          if (on) lastSingle = { r, c };
-          closePopup();
-        } else if (e.shiftKey && lastSingle) {
-          // Range select from lastSingle to this cell
+        if (e.shiftKey && lastSingle) {
+          // Range: fill rectangle from anchor to here
           clearSelection();
           const r0 = Math.min(lastSingle.r, r), r1 = Math.max(lastSingle.r, r);
           const c0 = Math.min(lastSingle.c, c), c1 = Math.max(lastSingle.c, c);
           for (let rr = r0; rr <= r1; rr++)
             for (let cc = c0; cc <= c1; cc++)
               setSelected(rr, cc, true);
-          // Open popup for the range
+          openPopup(r, c, td);
+        } else if (e.ctrlKey || e.metaKey) {
+          // Toggle this cell; open popup for whole selection
+          const on = !selection.has(selKey(r, c));
+          setSelected(r, c, on);
+          lastSingle = { r, c };
+          if (selection.size > 0) openPopup(r, c, td);
+          else closePopup();
+        } else if (selection.size > 1 && selection.has(selKey(r, c))) {
+          // Plain click on already-selected cell with a multi-select: open popup for all
           openPopup(r, c, td);
         } else {
-          // Plain click: clear selection and open popup
+          // Plain click: clear, select just this cell, open popup
           clearSelection();
           lastSingle = { r, c };
           setSelected(r, c, true);
