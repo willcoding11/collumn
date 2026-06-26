@@ -521,7 +521,8 @@ function buildSwatches() {
     s.style.backgroundColor = color;
     s.title = label;
     if (selectedColor === color) s.classList.add('selected');
-    s.addEventListener('click', () => {
+    s.addEventListener('click', (e) => {
+      e.stopPropagation();
       selectedColor = color;
       customColorInput.value = color;
       buildSwatches();
@@ -536,7 +537,8 @@ function buildSwatches() {
     s.style.backgroundColor = color;
     s.title = label;
     if (selectedColor === color) s.classList.add('selected');
-    s.addEventListener('click', () => {
+    s.addEventListener('click', (e) => {
+      e.stopPropagation();
       selectedColor = color;
       customColorInput.value = color;
       buildSwatches();
@@ -608,7 +610,10 @@ document.getElementById('popup-clear-btn').addEventListener('click', () => {
 
 document.addEventListener('click', e => {
   if (popup.classList.contains('visible')) {
-    if (!popup.contains(e.target) && !e.target.closest('td')) closePopup();
+    // Guard against detached nodes (e.g. rebuilt swatches): also check coords vs popup box
+    const r = popup.getBoundingClientRect();
+    const insideBox = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    if (!popup.contains(e.target) && !insideBox && !e.target.closest('td')) closePopup();
   } else if (!e.target.closest('td') && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
     clearSelection();
     lastSingle = null;
