@@ -548,8 +548,8 @@ function buildSwatches() {
 function openPopup(r, c, td) {
   activeCell = { r, c };
   const cell = state.cells[r][c];
-  selectedColor = cell.color;
   customColorInput.value = cell.color || '#ffffff';
+  selectedColor = cell.color || customColorInput.value;
   popupTextInput.value = cell.text || '';
   const count = selection.size;
   document.getElementById('popup-title').textContent =
